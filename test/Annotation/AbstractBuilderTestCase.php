@@ -23,14 +23,17 @@ use Laminas\Validator\EmailAddress;
 use Laminas\Validator\NotEmpty;
 use Laminas\Validator\StringLength;
 use Laminas\Validator\ValidatorChain;
+use LaminasTest\Form\ErrorHandler;
 use LaminasTest\Form\TestAsset;
 use LaminasTest\Form\TestAsset\Annotation\Entity;
+use LaminasTest\Form\TestAsset\Annotation\EntityObjectPropertyHydrator;
 use LaminasTest\Form\TestAsset\Annotation\Form;
 use LaminasTest\Form\TestAsset\Annotation\InputFilter;
 use LaminasTest\Form\TestAsset\Annotation\InputFilterInput;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
+use function count;
 use function getenv;
 
 abstract class AbstractBuilderTestCase extends TestCase
@@ -260,7 +263,44 @@ abstract class AbstractBuilderTestCase extends TestCase
         self::assertTrue($target->has('username'));
         self::assertTrue($target->has('password'));
         self::assertInstanceOf(InputFilterProviderFieldset::class, $target);
-        $filterSpec = $target->getInputFilterSpecification();
+        $this->validateEntityFilterSpec($target->getInputFilterSpecification());
+    }
+
+    public function testAllowsComposingMultipleChildEntitiesWithEntityBind(): void
+    {
+        $entity  = new TestAsset\Annotation\EntityComposingMultipleEntitiesObjectPropertyHydrator();
+        $builder = $this->createBuilder();
+        $form    = $builder->createForm($entity);
+
+        self::assertTrue($form->has('child'));
+        $child = $form->get('child');
+        self::assertInstanceOf(Collection::class, $child);
+        $target = $child->getTargetElement();
+        self::assertInstanceOf(FieldsetInterface::class, $target);
+        self::assertTrue($target->has('username'));
+        self::assertTrue($target->has('password'));
+        self::assertInstanceOf(InputFilterProviderFieldset::class, $target);
+        $this->validateEntityFilterSpec($target->getInputFilterSpecification());
+
+        self::assertNull($entity->child);
+        $form->bind($entity);
+        $form->setData([
+            'child' => [
+                '0' => ['password' => 'email@test.com', 'username' => 'user'],
+                '1' => ['password' => 'email2@test.com', 'username' => 'user2'],
+            ],
+        ]);
+        self::assertTrue($form->isValid());
+        self::assertNotNull($entity->child);
+        self::assertEquals(2, count($entity->child));
+        self::assertInstanceOf(EntityObjectPropertyHydrator::class, $entity->child[0]);
+        self::assertEquals('email@test.com', $entity->child[0]->password);
+        self::assertEquals('user', $entity->child[0]->username);
+        self::assertInstanceOf(EntityObjectPropertyHydrator::class, $entity->child[1]);
+    }
+
+    protected function validateEntityFilterSpec(array $filterSpec): void
+    {
         self::assertArrayHasKey('username', $filterSpec);
         self::assertArrayHasKey('password', $filterSpec);
         $usernameFilterSpec = $filterSpec['username'];
@@ -322,10 +362,8 @@ abstract class AbstractBuilderTestCase extends TestCase
 
     /**
      * Data provider
-     *
-     * @return Generator
      */
-    public function provideOptionsAnnotationAndComposedObjectAnnotation()
+    public static function provideOptionsAnnotationAndComposedObjectAnnotation(): Generator
     {
         yield ['child'];
         yield ['childTheSecond'];
@@ -349,10 +387,8 @@ abstract class AbstractBuilderTestCase extends TestCase
 
     /**
      * Data provider
-     *
-     * @return Generator
      */
-    public function provideOptionsAnnotationAndComposedObjectAnnotationNoneCollection()
+    public static function provideOptionsAnnotationAndComposedObjectAnnotationNoneCollection(): Generator
     {
         yield ['childTheThird'];
         yield ['childTheFourth'];
@@ -477,6 +513,7 @@ abstract class AbstractBuilderTestCase extends TestCase
 
     public function testLegacyComposedObjectAnnotation(): void
     {
+        ErrorHandler::setErrorHandler();
         try {
             $entity  = new TestAsset\Annotation\LegacyComposedObjectAnnotation();
             $builder = $this->createBuilder();
@@ -484,11 +521,14 @@ abstract class AbstractBuilderTestCase extends TestCase
             self::fail('Neither a deprecation nor an exception were thrown');
         } catch (Throwable $error) {
             self::assertMatchesRegularExpression('/Passing a single array .* is deprecated/', $error->getMessage());
+        } finally {
+            ErrorHandler::restoreErrorHandler();
         }
     }
 
     public function testLegacyStyleFilterAnnotations(): void
     {
+        ErrorHandler::setErrorHandler();
         try {
             $entity  = new TestAsset\Annotation\LegacyFilterAnnotation();
             $builder = $this->createBuilder();
@@ -496,11 +536,14 @@ abstract class AbstractBuilderTestCase extends TestCase
             self::fail('Neither a deprecation nor an exception were thrown');
         } catch (Throwable $error) {
             self::assertMatchesRegularExpression('/Passing a single array .* is deprecated/', $error->getMessage());
+        } finally {
+            ErrorHandler::restoreErrorHandler();
         }
     }
 
     public function testLegacyStyleHydratorAnnotations(): void
     {
+        ErrorHandler::setErrorHandler();
         try {
             $entity  = new TestAsset\Annotation\LegacyHydratorAnnotation();
             $builder = $this->createBuilder();
@@ -508,11 +551,14 @@ abstract class AbstractBuilderTestCase extends TestCase
             self::fail('Neither a deprecation nor an exception were thrown');
         } catch (Throwable $error) {
             self::assertMatchesRegularExpression('/Passing a single array .* is deprecated/', $error->getMessage());
+        } finally {
+            ErrorHandler::restoreErrorHandler();
         }
     }
 
     public function testLegacyStyleValidatorAnnotations(): void
     {
+        ErrorHandler::setErrorHandler();
         try {
             $entity  = new TestAsset\Annotation\LegacyValidatorAnnotation();
             $builder = $this->createBuilder();
@@ -520,6 +566,8 @@ abstract class AbstractBuilderTestCase extends TestCase
             self::fail('Neither a deprecation nor an exception were thrown');
         } catch (Throwable $error) {
             self::assertMatchesRegularExpression('/Passing a single array .* is deprecated/', $error->getMessage());
+        } finally {
+            ErrorHandler::restoreErrorHandler();
         }
     }
 }

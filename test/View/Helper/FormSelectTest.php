@@ -197,7 +197,7 @@ final class FormSelectTest extends AbstractCommonTestCase
         self::assertMatchesRegularExpression('#<select[^>]*?(name="foo\&\#x5B\;\&\#x5D\;")#', $markup);
     }
 
-    public function getScalarOptionsDataProvider(): array
+    public static function getScalarOptionsDataProvider(): array
     {
         return [
             [['value' => 'string']],
@@ -266,16 +266,11 @@ final class FormSelectTest extends AbstractCommonTestCase
         $mockTranslator = $this->createMock(Translator::class);
         $mockTranslator->expects($this->exactly(3))
             ->method('translate')
-            ->withConsecutive(
-                ['translate me'],
-                ['foo'],
-                ['bar']
-            )
-            ->willReturnOnConsecutiveCalls(
-                'translated label',
-                'translated foo',
-                'translated bar',
-            );
+            ->willReturnMap([
+                ['translate me', 'default', null, 'translated label'],
+                ['foo', 'default', null, 'translated foo'],
+                ['bar', 'default', null, 'translated bar'],
+            ]);
 
         $this->helper->setTranslator($mockTranslator);
         self::assertTrue($this->helper->hasTranslator());
